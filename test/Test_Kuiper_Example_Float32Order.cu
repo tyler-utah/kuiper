@@ -1,21 +1,17 @@
 #include "test-common.h"
-#include <cstring>
+#include "float_test_common.c.inc"
 #include <vector>
 
 #include "Kuiper_Example_Float32Order.cu"
 
 #define ORDER_API(name) Kuiper_Example_Float32Order_##name
 
-static float from_bits(uint32_t bits)
-{
-    float value;
-    memcpy(&value, &bits, sizeof value);
-    return value;
-}
+using float_test::from_bits;
+using float_test::sign_mask;
 
 static bool is_nan_bits(uint32_t bits)
 {
-    return (bits & 0x7fffffffU) > 0x7f800000U;
+    return (bits & ~sign_mask) > float_test::exponent_mask;
 }
 
 // Integer ordering is independent of the extracted floating comparison.
@@ -23,20 +19,25 @@ static bool less_bits(uint32_t x, uint32_t y)
 {
     if (is_nan_bits(x) || is_nan_bits(y))
         return false;
-    if (((x | y) & 0x7fffffffU) == 0)
+    if (((x | y) & ~sign_mask) == 0)
         return false;
-    uint32_t kx = (x & 0x80000000U) ? ~x : (x ^ 0x80000000U);
-    uint32_t ky = (y & 0x80000000U) ? ~y : (y ^ 0x80000000U);
+    uint32_t kx = (x & sign_mask) ? ~x : (x ^ sign_mask);
+    uint32_t ky = (y & sign_mask) ? ~y : (y ^ sign_mask);
     return kx < ky;
 }
 
-__global__ void compare_pairs(
+__global__ void compare_triples(
     const uint32_t *values, unsigned char *out, unsigned count)
 {
     unsigned index = blockIdx.x * blockDim.x + threadIdx.x;
-    if (index < count * count)
-        out[index] = ORDER_API(compare)(__uint_as_float(values[index / count]),
-            __uint_as_float(values[index % count]));
+    if (index < count) {
+        float x = __uint_as_float(values[3 * index]);
+        float y = __uint_as_float(values[3 * index + 1]);
+        float z = __uint_as_float(values[3 * index + 2]);
+        out[3 * index] = ORDER_API(compare)(x, y);
+        out[3 * index + 1] = ORDER_API(compare)(y, z);
+        out[3 * index + 2] = ORDER_API(compare)(x, z);
+    }
 }
 
 static void fail(const char *message, uint32_t x, uint32_t y, uint32_t z = 0)
@@ -47,27 +48,19 @@ static void fail(const char *message, uint32_t x, uint32_t y, uint32_t z = 0)
 
 int main()
 {
-    std::vector<uint32_t> values = {0, 0x80000000U, 1, 0x80000001U, 0x007fffffU,
-        0x807fffffU, 0x00800000U, 0x80800000U, 0x3f7fffffU, 0x3f800000U,
-        0x3f800001U, 0xbf7fffffU, 0xbf800000U, 0xbf800001U, 0x7f7fffffU,
-        0xff7fffffU, 0x7f800000U, 0xff800000U, 0x7fc00000U, 0x7fc00001U,
-        0xffc00001U, 0x7f800001U, 0xff800001U, 0x7fffffffU};
-    uint32_t random = 0x31415926U;
-    for (unsigned i = 0; i < 64; ++i) {
-        random ^= random << 13;
-        random ^= random >> 17;
-        random ^= random << 5;
-        values.push_back(random);
-    }
-    unsigned count = static_cast<unsigned>(values.size());
-    std::vector<unsigned char> results(count * count);
+    constexpr unsigned count = 50000;
+    std::mt19937 random(0);
+    std::vector<uint32_t> values(3 * count);
+    for (uint32_t &value : values)
+        value = float_test::to_bits(float_test::random_float32(random));
+    std::vector<unsigned char> results(3 * count);
     uint32_t *device_values;
     unsigned char *device_results;
     MUST(cudaMalloc(&device_values, values.size() * sizeof(uint32_t)));
     MUST(cudaMalloc(&device_results, results.size()));
     MUST(cudaMemcpy(device_values, values.data(),
         values.size() * sizeof(uint32_t), cudaMemcpyHostToDevice));
-    compare_pairs<<<(count * count + 127) / 128, 128>>>(
+    compare_triples<<<(count + 127) / 128, 128>>>(
         device_values, device_results, count);
     MUST(cudaGetLastError());
     MUST(cudaMemcpy(results.data(), device_results, results.size(),
@@ -76,23 +69,21 @@ int main()
     MUST(cudaFree(device_values));
 
     for (unsigned i = 0; i < count; ++i) {
-        for (unsigned j = 0; j < count; ++j) {
-            uint32_t x = values[i], y = values[j];
+        const unsigned pairs[][2] = {{0, 1}, {1, 2}, {0, 2}};
+        for (unsigned edge = 0; edge < 3; ++edge) {
+            uint32_t x = values[3 * i + pairs[edge][0]];
+            uint32_t y = values[3 * i + pairs[edge][1]];
             bool expected = less_bits(x, y);
             if (ORDER_API(compare)(from_bits(x), from_bits(y)) != expected)
                 fail("Host comparison differs from integer oracle", x, y);
-            if (results[i * count + j] != expected)
+            if (results[3 * i + edge] != expected)
                 fail("Device comparison differs from integer oracle", x, y);
-            if (!results[i * count + j])
-                continue;
-            if (is_nan_bits(x) || is_nan_bits(y))
+            if (results[3 * i + edge] && (is_nan_bits(x) || is_nan_bits(y)))
                 fail("Successful comparison has a NaN operand", x, y);
-            for (unsigned k = 0; k < count; ++k) {
-                if (results[j * count + k] && !results[i * count + k])
-                    fail(
-                        "Strict comparison is not transitive", x, y, values[k]);
-            }
         }
+        if (results[3 * i] && results[3 * i + 1] && !results[3 * i + 2])
+            fail("Strict comparison is not transitive", values[3 * i],
+                values[3 * i + 1], values[3 * i + 2]);
     }
     puts("Float32 ordering checks passed.");
 }

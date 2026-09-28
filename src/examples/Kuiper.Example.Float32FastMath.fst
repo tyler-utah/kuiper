@@ -7,42 +7,42 @@ module Fast = Kuiper.Float32.FastMath
 module SZ = Kuiper.SizeT
 
 inline_for_extraction noextract
-fn exp_contract (x : f32) (xr : erased real)
+fn exp_contract (x : f32) (xr : real)
   preserves gpu
   requires pure (x %~ xr)
   returns result : f32
-  ensures pure (result %~ Kuiper.Real.exp (reveal xr))
+  ensures pure (result %~ Kuiper.Real.exp xr)
 {
   Fast.exp x
 }
 
 inline_for_extraction noextract
-fn divide_contract (x y : f32) (xr : erased real)
-  (yr : erased real{reveal yr =!= 0.0R})
+fn divide_contract (x y : f32) (xr : real)
+  (yr : real{yr =!= 0.0R})
   preserves gpu
-  requires pure (x %~ xr /\ y %~ (yr <: erased real))
+  requires pure (x %~ xr /\ y %~ (yr <: real))
   returns result : f32
-  ensures pure (result %~ (reveal xr /. reveal yr <: real))
+  ensures pure (result %~ (xr /. yr <: real))
 {
   Fast.divide x y
 }
 
 inline_for_extraction noextract
-fn fma_contract (x y z : f32) (xr yr zr : erased real)
+fn fma_contract (x y z : f32) (xr yr zr : real)
   preserves gpu
   requires pure (x %~ xr /\ y %~ yr /\ z %~ zr)
   returns result : f32
-  ensures pure (result %~ (reveal xr *. reveal yr +. reveal zr <: real))
+  ensures pure (result %~ (xr *. yr +. zr <: real))
 {
   Fast.fma_rn x y z
 }
 
 inline_for_extraction noextract
-fn sub_contract (x y : f32) (xr yr : erased real)
+fn sub_contract (x y : f32) (xr yr : real)
   preserves gpu
   requires pure (x %~ xr /\ y %~ yr)
   returns result : f32
-  ensures pure (result %~ (reveal xr -. reveal yr <: real))
+  ensures pure (result %~ (xr -. yr <: real))
 {
   Fast.sub_rn x y
 }
@@ -50,13 +50,13 @@ fn sub_contract (x y : f32) (xr yr : erased real)
 inline_for_extraction noextract
 fn normalized_exp_contract
   (x maximum denominator : f32)
-  (xr mr : erased real)
-  (dr : erased real{reveal dr =!= 0.0R})
+  (xr mr : real)
+  (dr : real{dr =!= 0.0R})
   preserves gpu
-  requires pure (x %~ xr /\ maximum %~ mr /\ denominator %~ (dr <: erased real))
+  requires pure (x %~ xr /\ maximum %~ mr /\ denominator %~ (dr <: real))
   returns result : f32
   ensures pure (result %~
-    (Kuiper.Real.exp (reveal xr -. reveal mr) /. reveal dr <: real))
+    (Kuiper.Real.exp (xr -. mr) /. dr <: real))
 {
   let difference = Fast.sub_rn x maximum;
   let numerator = Fast.exp difference;
@@ -129,6 +129,7 @@ fn kernel
   }
 }
 
+(* The generic instance targets visibility_of arr; launch_kernel_1 needs gpu_of. *)
 instance send_global_array_contents
   (#a : Type0)
   (arr : array a{is_global_array arr})

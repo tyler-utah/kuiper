@@ -1,20 +1,9 @@
-#include <cstring>
+#include "float_test_common.c.inc"
+#include <cmath>
 #include <vector>
 #include "Kuiper_Example_Float32FastMath.h"
 
-static float from_bits(uint32_t bits)
-{
-    float value;
-    memcpy(&value, &bits, sizeof value);
-    return value;
-}
-
-static uint32_t to_bits(float value)
-{
-    uint32_t bits;
-    memcpy(&bits, &value, sizeof bits);
-    return bits;
-}
+using float_test::to_bits;
 
 __global__ void reference(const float *inputs, float *outputs, uint32_t n)
 {
@@ -33,47 +22,18 @@ __global__ void reference(const float *inputs, float *outputs, uint32_t n)
 
 int main()
 {
-    const uint32_t special[] = {
-        0,
-        0x80000000,
-        1,
-        0x80000001,
-        0x007fffff,
-        0x807fffff,
-        0x00800000,
-        0x80800000,
-        0x3f800000,
-        0xbf800000,
-        0x3f800001,
-        0x3eaaaaab,
-        0x7e800001,
-        0x7f7fffff,
-        0xff7fffff,
-        0x7f800000,
-        0xff800000,
-        0x7fc00001,
-        0xffc12345,
-        0x7f800001,
-        0xff800001,
-    };
-    std::vector<float> inputs = {-87.33984375f, 1.0f, 0.0f};
-    for (uint32_t x : special)
-        for (uint32_t y : special)
-            for (uint32_t z : special) {
-                inputs.push_back(from_bits(x));
-                inputs.push_back(from_bits(y));
-                inputs.push_back(from_bits(z));
-            }
-    uint32_t state = 0x13579bdf;
-    for (uint32_t i = 0; i < 131072; ++i) {
-        for (uint32_t j = 0; j < 3; ++j) {
-            state = state * 1664525u + 1013904223u;
-            inputs.push_back(
-                i % 2 ? from_bits(state)
-                      : (static_cast<int32_t>(state % 53761) - 28160) / 256.0f);
-        }
-    }
-    uint32_t n = static_cast<uint32_t>(inputs.size() / 3);
+    constexpr uint32_t n = 50000;
+    std::mt19937 random(0);
+    std::vector<float> inputs(3 * n);
+    for (float &value : inputs)
+        value = float_test::random_float32(random);
+    // Keep a subnormal exponential and a fused-vs-separate rounding witness.
+    inputs[0] = -87.33984375f;
+    inputs[1] = 1.0f;
+    inputs[2] = 0.0f;
+    inputs[3] = std::nextafter(1.0f, 2.0f);
+    inputs[4] = std::nextafter(1.0f, 0.0f);
+    inputs[5] = -1.0f;
     std::vector<float> expected(7 * n), actual(4 * n);
     float *device_inputs, *device_expected, *device_actual;
     MUST(cudaMalloc(&device_inputs, inputs.size() * sizeof(float)));
@@ -102,8 +62,8 @@ int main()
             different[op] += to_bits(expected[7 * i + op]) !=
                              to_bits(expected[7 * i + 4 + op]);
     }
-    if (to_bits(actual[0]) == 0 || to_bits(actual[0]) >= 0x00800000 ||
-        !different[0] || !different[1] || !different[2]) {
+    if (std::fpclassify(actual[0]) != FP_SUBNORMAL || !different[0] ||
+        !different[1] || !different[2]) {
         fprintf(
             stderr, "missing subnormal or replacement-sensitive coverage\n");
         return 1;

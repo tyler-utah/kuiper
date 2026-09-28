@@ -67,5 +67,3 @@ fn sub_rn (x y : t)
     forall (xr yr : real).
       v_approximates x xr /\ v_approximates y yr ==>
       v_approximates result (xr -. yr))
-
-inline_for_extraction let () = ()
