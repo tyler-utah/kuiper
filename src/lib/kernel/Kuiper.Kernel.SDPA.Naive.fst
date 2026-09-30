@@ -140,7 +140,6 @@ let sdpa_scores_spec_slice
   Kuiper.Chest.lemma_equal_intro lhs rhs;
   Kuiper.Chest.ext lhs rhs
 
-#push-options "--z3rlimit_factor 2"
 let sdpa_probs_spec_slice
   (#n #h #l #s : nat)
   (scores : chest4 real n h l s)
@@ -157,7 +156,6 @@ let sdpa_probs_spec_slice
   with ();
   Kuiper.Chest.lemma_equal_intro lhs rhs;
   Kuiper.Chest.ext lhs rhs
-#pop-options
 
 let sdpa_softmax_aux
   (#n #h #l #s : pos)
@@ -324,7 +322,11 @@ let scaled_add_approx
     a_mul y scale ry (to_real scale);
     a_add x (y `mul` scale) rx (ry *. to_real scale)
   in
-  FStar.Classical.forall_intro_4 (FStar.Classical.move_requires_4 aux)
+  (* F* master cannot infer the predicate implicit of [forall_intro_4] (it
+     occurs only in the postcondition), so state the goal explicitly. *)
+  introduce forall (x y : et) (rx ry : real).
+    (x %~ rx /\ y %~ ry) ==> (x `add` (y `mul` scale)) %~ (rx +. (ry *. to_real scale))
+  with introduce _ ==> _ with aux x y rx ry
 
 let comb2_approx
   (#et : Type0) {| scalar et, real_like et |}

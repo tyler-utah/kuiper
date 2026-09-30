@@ -400,7 +400,6 @@ fn thread_share_chunks
     fn tid { fold thread_live_chunks x nthr tid };
 }
 
-#push-options "--z3rlimit_factor 2"
 ghost
 fn thread_gather_chunks
   (#et : Type0) {| sized et, has_vec_cpy et |}
@@ -495,4 +494,3 @@ fn thread_gather_chunks
     );
   array_unslice_1_with_exists x;
 }
-#pop-options
