@@ -1,13 +1,9 @@
 [submodule "FStar"]
 	path = FStar
-	url = ../FStar
-	branch = kuiper
-	depth = 1
+	url = https://github.com/FStarLang/FStar.git
 [submodule "karamel"]
 	path = karamel
-	url = ../karamel
-	branch = kuiper
-	depth = 1
+	url = https://github.com/tyler-utah/karamel.git
 [submodule "bench/SGEMM_CUDA"]
 	path = bench/SGEMM_CUDA
 	url = https://github.com/siboehm/SGEMM_CUDA
