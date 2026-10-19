@@ -23,7 +23,7 @@ Kuiper currently only generates CUDA code.
 **NOTE**: Some modules are still work in progress and therefore
 contain admitted proofs.
 
-## Paper proof-support snapshot (October 18, 2026)
+## Paper proof-support snapshot (October 19, 2026)
 
 This branch publishes the exact source support used by the independently
 reviewed Mirage decoder and LUCE RoPE work. It includes uninitialized-array
@@ -39,13 +39,25 @@ intermediate binary64 conversion. The RoPE logarithm enclosure and
 inverse-frequency identity are checked consequences, not new mathematical
 axioms. The source decimal is not equated with the ideal logarithm.
 
+The separately named `Luce.Softplus` and `Luce.Softplus.Fast` modules now
+publish the exact LUCE-local recurrent dependencies. The ordinary
+`softplus20_approx` assumption is inherited; the fast helper adds one explicitly
+authorized output-level approximation assumption for its actual strict-threshold
+`mul.ftz`/`ex2.approx.ftz`/`add.ftz`/`__logf` computation. These are disclosed local
+numerical assumptions, not new general `Kuiper.Float32` laws, proofs of branch
+agreement, IEEE equality or error bounds. Independent support acceptance checks
+source correspondence and controls; it does not prove either assumption.
+RESOLVE owns their E13 source copies and scalar/native regression tests.
+
 This is a source publication, not a claim that rebuilding reproduces the
 historical binaries or installation fingerprint. The scoped receipts, exact
 source bindings, reviews and controls are published in RESOLVE's
 `evidence/family-proofs/paired-proof-progress-20261018` and mirrored in
 GPUValidationPaper's `proofs/paired-proof-progress-20261018`.
-Candidate-family coverage is 10/12; full LUCE attention, recurrent-decoder
-acceptance and whole-program composition remain separate.
+The follow-up `paired-proof-progress-20261019` snapshots publish accepted full
+LUCE attention and the scoped recurrent support. Candidate-family coverage is
+11/12. Attention's bilateral no-overflow/no-invalid numerical premise is explicit;
+recurrent-family acceptance and whole-program composition remain pending.
 
 ## Publications
 
