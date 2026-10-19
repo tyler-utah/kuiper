@@ -13,6 +13,8 @@ open Kuiper.Approximates.Base
 open Kuiper.Real
 module Pow = FStar.Math.Pow
 module Sqrt = FStar.Math.Sqrt
+module Trig = Kuiper.Real.Trigonometry
+module F = Kuiper.Floating.Base
 
 open Kuiper.Float32.Base
 
@@ -48,8 +50,34 @@ instance is_floating : floating t = {
 instance is_real_like          : real_like t = magic()
 instance is_floating_real_like : floating_real_like t = magic()
 
+let positive_normal = Kuiper.Float32.Base.positive_normal
+let positive_normal_of_literal (s : string) =
+  Kuiper.Float32.Base.positive_normal_of_literal s
+let positive_literal_at_most_one (s : string) =
+  Kuiper.Float32.Base.positive_literal_at_most_one s
+
+(* Trusted compiler/approximation bridge, separate from the checked integer
+   certificate and mathematical real enclosure. No native equality is asserted. *)
+let literal_interval_approx
+  (s : string) (lo_num : nat) (lo_den : pos)
+  (hi_num : nat) (hi_den : pos) (mantissa : nat) (exponent : int) (r : real)
+  : Lemma
+      (requires
+        Kuiper.Float32.Literals.common_normal_cell
+          s lo_num lo_den hi_num hi_den mantissa exponent /\
+        FStar.Real.of_int lo_num /. FStar.Real.of_int lo_den <=. r /\
+        r <=. FStar.Real.of_int hi_num /. FStar.Real.of_int hi_den)
+      (ensures v_approximates (F.of_literal #t s) r)
+  = admit()
+
+let non_nan_classification (x : t) =
+  Kuiper.Float32.Base.non_nan_classification x
+let fmax_special_values (x y : t) =
+  Kuiper.Float32.Base.fmax_special_values x y
+
 let lt_ordered (x y : t) = Kuiper.Float32.Base.lt_ordered x y
 let lt_transitive (x y z : t) = Kuiper.Float32.Base.lt_transitive x y z
+let exp_special_values (x : t) = Kuiper.Float32.Base.exp_special_values x
 
 inline_for_extraction noextract
 let fexpm1 = Kuiper.Float32.Base.fexpm1
@@ -74,6 +102,33 @@ let log1p_approx
       (ensures v_approximates (flog1p x) (log (1.0R +. r)))
 = admit()
 
+(* Ordinary native math extends the same trusted approximation model.
+   These assumptions do not identify ordinary and fast operations. *)
+let pow_approx
+  (x y : t)
+  (xr : Pow.rpos)
+  (yr : real)
+  : Lemma
+      (requires v_approximates x xr /\ v_approximates y yr)
+      (ensures v_approximates (pow x y) (Pow.pow xr yr))
+= admit()
+
+let sin_approx
+  (x : t)
+  (xr : real)
+  : Lemma
+      (requires v_approximates x xr)
+      (ensures v_approximates (sin x) (Trig.sin xr))
+= admit()
+
+let cos_approx
+  (x : t)
+  (xr : real)
+  : Lemma
+      (requires v_approximates x xr)
+      (ensures v_approximates (cos x) (Trig.cos xr))
+= admit()
+
 (* Extracted primitively; the approximation contracts are trusted. *)
 noextract
 fn add_rn_ftz (x y : t)
@@ -92,9 +147,15 @@ fn fma_rn_ftz (x y z : t)
   preserves gpu
   returns result : t
   ensures pure (
-    forall (xr yr zr : real).
+    (forall (xr yr zr : real).
       v_approximates x xr /\ v_approximates y yr /\ v_approximates z zr ==>
-      v_approximates result (xr *. yr +. zr))
+      v_approximates result (xr *. yr +. zr)) /\
+    (x == F.sub F.zero F.infinity /\ positive_normal y /\
+      (Finite? (kind z) \/ z == F.sub F.zero F.infinity) ==>
+      result == F.sub F.zero F.infinity) /\
+    (x == F.sub F.zero F.infinity /\ positive_normal y /\ z == F.infinity ==>
+      NaN? (kind result)) /\
+    (NaN? (kind x) \/ NaN? (kind y) \/ NaN? (kind z) ==> NaN? (kind result)))
 {
   admit()
 }
@@ -104,9 +165,15 @@ fn mul_rn_ftz (x y : t)
   preserves gpu
   returns result : t
   ensures pure (
-    forall (xr yr : real).
+    (forall (xr yr : real).
       v_approximates x xr /\ v_approximates y yr ==>
-      v_approximates result (xr *. yr))
+      v_approximates result (xr *. yr)) /\
+    (Finite? (kind x) /\ positive_normal y /\ F.lte y F.one ==>
+      Finite? (kind result)) /\
+    (x == F.infinity /\ positive_normal y ==> result == F.infinity) /\
+    (x == F.sub F.zero F.infinity /\ positive_normal y ==>
+      result == F.sub F.zero F.infinity) /\
+    (NaN? (kind x) \/ NaN? (kind y) ==> NaN? (kind result)))
 {
   admit()
 }
@@ -116,9 +183,13 @@ fn exp2_approx_ftz (x : t)
   preserves gpu
   returns result : t
   ensures pure (
-    forall (xr : real).
+    (forall (xr : real).
       v_approximates x xr ==>
-      v_approximates result (Pow.exp2 xr))
+      v_approximates result (Pow.exp2 xr)) /\
+    (x == F.sub F.zero F.infinity ==> result == F.zero) /\
+    (x == F.infinity ==> result == F.infinity) /\
+    (is_zero x ==> result == F.one) /\
+    (NaN? (kind x) ==> NaN? (kind result)))
 {
   admit()
 }

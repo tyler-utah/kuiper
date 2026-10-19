@@ -1,6 +1,6 @@
 [submodule "FStar"]
 	path = FStar
-	url = https://github.com/FStarLang/FStar.git
+	url = https://github.com/tyler-utah/FStar.git
 [submodule "karamel"]
 	path = karamel
 	url = https://github.com/tyler-utah/karamel.git

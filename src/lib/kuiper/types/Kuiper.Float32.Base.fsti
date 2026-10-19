@@ -39,6 +39,33 @@ val kind_infinity : squash (kind infinity == Infinite)
 val zero_is_zero : squash (is_zero zero)
 val one_is_nonzero : squash (~(is_zero one))
 
+noextract
+let positive_normal (x : t) : prop =
+  Finite? (kind x) /\
+  lte (of_literal "0.000000000000000000000000000000000000011754943508222875079687365372222456778186655567720875215087517062784172594547271728515625") x
+
+(* Trusted literal-lowering bridge, independent of real approximation.
+   The checked rational certificate places the decimal in [2^-126, FLT_MAX],
+   so correctly rounded binary32 conversion is positive and normal. *)
+val positive_normal_of_literal (s : string)
+  : Lemma
+      (requires Kuiper.Float32.Literals.positive_normal_decimal s)
+      (ensures positive_normal (of_literal s))
+
+(* A positive decimal no greater than the exactly representable 1.0 cannot
+   round above it. This is the same trusted literal-lowering boundary. *)
+val positive_literal_at_most_one (s : string)
+  : Lemma
+      (requires Kuiper.Float32.Literals.positive_normal_decimal s /\
+                Kuiper.Float32.Literals.at_most_one_decimal s)
+      (ensures lte (of_literal s) one)
+
+(* Binary32 has exactly two infinite encodings. *)
+val non_nan_classification (x : t)
+  : Lemma
+      (requires not (NaN? (kind x)))
+      (ensures Finite? (kind x) \/ x == infinity \/ x == sub zero infinity)
+
 val bit_eq_spec : (x:t) -> (y:t) ->
     Lemma (bit_eq x y <==> x == y)
           [SMTPat (bit_eq x y)]
@@ -139,7 +166,26 @@ val fmax_spec : (x : t) -> (y : t) ->
           (ensures eq (fmax x y) (if lt x y then y else x))
           [SMTPat (fmax x y)]
 
+(* Trusted CUDA fmaxf treats one NaN as missing data; two NaNs remain NaN.
+   https://docs.nvidia.com/cuda/archive/13.0.0/cuda-math-api/cuda_math_api/group__CUDA__MATH__SINGLE.html#_CPPv45fmaxfff *)
+val fmax_special_values (x y : t)
+  : Lemma (ensures
+      (not (NaN? (kind x)) /\ NaN? (kind y) ==> fmax x y == x) /\
+      (NaN? (kind x) /\ not (NaN? (kind y)) ==> fmax x y == y) /\
+      (NaN? (kind x) /\ NaN? (kind y) ==> NaN? (kind (fmax x y))))
+
 val fexp : t -> t
+
+(* Trusted CUDA expf special values, separate from real approximation:
+   https://docs.nvidia.com/cuda/archive/13.0.0/cuda-math-api/cuda_math_api/group__CUDA__MATH__SINGLE.html#_CPPv44expff
+   Equality specifies positive zero exactly; NaN signs/payloads are unspecified.
+   This is the ordinary expf binding, not the fast __expf intrinsic. *)
+val exp_special_values (x : t)
+  : Lemma (ensures
+      ((x == sub zero infinity ==> fexp x == zero) /\
+       (x == infinity ==> fexp x == infinity) /\
+       (NaN? (kind x) ==> NaN? (kind (fexp x)))))
+
 val flog : t -> t
 val fexpm1 : t -> t
 val flog1p : t -> t

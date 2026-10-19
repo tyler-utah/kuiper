@@ -23,6 +23,30 @@ Kuiper currently only generates CUDA code.
 **NOTE**: Some modules are still work in progress and therefore
 contain admitted proofs.
 
+## Paper proof-support snapshot (October 18, 2026)
+
+This branch publishes the exact source support used by the independently
+reviewed Mirage decoder and LUCE RoPE work. It includes uninitialized-array
+ownership transport, the previously reviewed Float32 special-value and
+source-guard contracts, and the new constructive `Luce.RoPE` bridge. The F*
+submodule includes the checked logarithm-series and exponential-normalization
+support; inherited mathematical assumptions remain explicit.
+
+`Float32.literal_interval_approx` is an existing trusted compiler/approximation
+contract, not an IEEE error-bound theorem. Its conservative literal-cell radius
+is explicitly strengthened from 1/4 to 3/8 ULP, with a strict margin for
+intermediate binary64 conversion. The RoPE logarithm enclosure and
+inverse-frequency identity are checked consequences, not new mathematical
+axioms. The source decimal is not equated with the ideal logarithm.
+
+This is a source publication, not a claim that rebuilding reproduces the
+historical binaries or installation fingerprint. The scoped receipts, exact
+source bindings, reviews and controls are published in RESOLVE's
+`evidence/family-proofs/paired-proof-progress-20261018` and mirrored in
+GPUValidationPaper's `proofs/paired-proof-progress-20261018`.
+Candidate-family coverage is 10/12; full LUCE attention, recurrent-decoder
+acceptance and whole-program composition remain separate.
+
 ## Publications
 
 - **Kuiper: Correct and Efficient GPU Programming with Dependent Types and Separation Logic**

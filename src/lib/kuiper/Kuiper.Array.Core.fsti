@@ -196,6 +196,16 @@ instance val is_send_pts_to
       (visibility_of x)
       (pts_to x #f v)
 
+instance val is_send_pts_to_mask
+  (#a:Type u#0)
+  (x : array a)
+  (#[full_default ()] f : perm)
+  (v : seq (option a))
+  (mask : nat -> prop)
+  : is_send_across
+      (visibility_of x)
+      (A.pts_to_mask x #f v mask)
+
 instance val is_send_pts_to_slice
   (#a:Type u#0)
   (x : array a)
@@ -213,6 +223,15 @@ instance is_send_across_global_array
 : is_send_across gpu_of (pts_to_slice a #f i j s)
 = let i : is_send_across (visibility_of a) (pts_to_slice a #f i j s) = solve in
   i
+
+instance is_send_across_global_array_mask
+  (#et:Type0)
+  (a : array et { is_global_array a })
+  (#f : perm)
+  (s : seq (option et))
+  (mask : nat -> prop)
+  : is_send_across gpu_of (A.pts_to_mask a #f s mask)
+  = is_send_pts_to_mask a #f s mask
 
 [@@pulse_unfold; FStar.Tactics.Typeclasses.noinst]
 instance cell_pts_to (#a : Type)

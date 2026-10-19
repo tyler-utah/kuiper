@@ -275,6 +275,17 @@ instance is_send_pts_to
       (pts_to x #f v)
   = solve
 
+instance is_send_pts_to_mask
+  (#a:Type u#0)
+  (x : array a)
+  (#[full_default ()] f : perm)
+  (v : seq (option a))
+  (mask : nat -> prop)
+  : is_send_across
+      (visibility_of x)
+      (A.pts_to_mask x #f v mask)
+  = A.is_send_across_pts_to_mask x f v mask
+
 instance is_send_pts_to_slice
   (#a:Type u#0)
   ([@@@mkey] x : array a)
